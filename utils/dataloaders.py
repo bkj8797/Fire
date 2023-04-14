@@ -314,11 +314,12 @@ class LoadImages:
             im = letterbox(im0, self.img_size, stride=self.stride, auto=self.auto)[0]  # padded resize
             im = im.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
             im = np.ascontiguousarray(im)  # contiguous
-        
-        im_ = im.numpy()
-        im_ = im_.astype(np.uint8)
-        im_ = np.transpose(im_, (1, 2, 0))[:, :, ::-1]
-        cv2.imwrite(f'{self.count}.jpg', im_)
+            
+        # print augmentations
+        # im_ = im.numpy()
+        # im_ = im_.astype(np.uint8)
+        # im_ = np.transpose(im_, (1, 2, 0))[:, :, ::-1]
+        # cv2.imwrite(f'{self.count}.jpg', im_)
         
         return path, im, im0, self.cap, s
 
