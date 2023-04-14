@@ -1,0 +1,6 @@
+train: D:\bongkj\Dataset\230331_Fire_Dataset\new\Kaggle_D-Fire\D-Fire\train
+val: D:\bongkj\Dataset\230331_Fire_Dataset\new\Kaggle_D-Fire\D-Fire\test
+
+nc : 2
+
+names: ['smoke', 'fire']
