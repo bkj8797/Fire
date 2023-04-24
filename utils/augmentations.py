@@ -36,7 +36,8 @@ class Albumentations:
                 A.CLAHE(p=0.01),
                 A.RandomBrightnessContrast(p=0.0),
                 A.RandomGamma(p=0.0),
-                A.ImageCompression(quality_lower=75, p=0.0)]  # transforms
+                A.ImageCompression(quality_lower=75, p=0.0)  # transforms
+            ]
             self.transform = A.Compose(T, bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
 
             LOGGER.info(prefix + ', '.join(f'{x}'.replace('always_apply=False, ', '') for x in T if x.p))
@@ -192,11 +193,16 @@ def random_perspective(im,
         else:  # affine
             im = cv2.warpAffine(im, M[:2], dsize=(width, height), borderValue=(114, 114, 114))
 
-    # Visualize
+    ## Visualize
     # import matplotlib.pyplot as plt
     # ax = plt.subplots(1, 2, figsize=(12, 6))[1].ravel()
     # ax[0].imshow(im[:, :, ::-1])  # base
     # ax[1].imshow(im2[:, :, ::-1])  # warped
+    # imsave for each images
+    # cv2.imwrite(f'{random()}_base.jpg', im[:, :, ::-1])
+    # cv2.imwrite(f'{random()}_warped.jpg', im2[:, :, ::-1])
+
+
 
     # Transform label coordinates
     n = len(targets)
@@ -320,21 +326,21 @@ def classify_albumentations(
         from albumentations.pytorch import ToTensorV2
         check_version(A.__version__, '1.0.3', hard=True)  # version requirement
         if augment:  # Resize and crop
-            T = [A.RandomResizedCrop(height=size, width=size, scale=scale, ratio=ratio)]
+            T = [A.Resize(size, size, p=1.0)]
             if auto_aug:
                 # TODO: implement AugMix, AutoAug & RandAug in albumentation
                 LOGGER.info(f'{prefix}auto augmentations are currently not supported')
-            else:
-                if hflip > 0:
-                    T += [A.HorizontalFlip(p=hflip)]
-                if vflip > 0:
-                    T += [A.VerticalFlip(p=vflip)]
-                if jitter > 0:
-                    color_jitter = (float(jitter),) * 3  # repeat value for brightness, contrast, satuaration, 0 hue
-                    T += [A.ColorJitter(*color_jitter, 0)]
+            # else:
+            #     if hflip > 0:
+            #         T += [A.HorizontalFlip(p=hflip)]
+            #     if vflip > 0:
+            #         T += [A.VerticalFlip(p=vflip)]
+            #     if jitter > 0:
+            #         color_jitter = (float(jitter),) * 3  # repeat value for brightness, contrast, satuaration, 0 hue
+            #         T += [A.ColorJitter(*color_jitter, 0)]
         else:  # Use fixed crop for eval set (reproducibility)
-            T = [A.SmallestMaxSize(max_size=size), A.CenterCrop(height=size, width=size)]
-        T += [A.Normalize(mean=mean, std=std), ToTensorV2()]  # Normalize and convert to Tensor
+            T = [LetterBox(size)]
+        T += [ToTensorV2(), A.Normalize(mean=mean, std=std)]  # Normalize and convert to Tensor
         LOGGER.info(prefix + ', '.join(f'{x}'.replace('always_apply=False, ', '') for x in T if x.p))
         return A.Compose(T)
 
@@ -342,7 +348,6 @@ def classify_albumentations(
         LOGGER.warning(f'{prefix}⚠️ not found, install with `pip install albumentations` (recommended)')
     except Exception as e:
         LOGGER.info(f'{prefix}{e}')
-
 
 def classify_transforms(size=224):
     # Transforms to apply if albumentations not installed

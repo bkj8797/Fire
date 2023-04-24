@@ -40,6 +40,9 @@ from utils.general import (LOGGER, TQDM_BAR_FORMAT, Profile, check_img_size, che
                            increment_path, print_args)
 from utils.torch_utils import select_device, smart_inference_mode
 
+import pathlib
+temp = pathlib.PosixPath
+pathlib.PosixPath = pathlib.WindowsPath
 
 @smart_inference_mode()
 def run(

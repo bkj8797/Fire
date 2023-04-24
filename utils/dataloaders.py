@@ -315,12 +315,6 @@ class LoadImages:
             im = im.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
             im = np.ascontiguousarray(im)  # contiguous
             
-        # print augmentations
-        # im_ = im.numpy()
-        # im_ = im_.astype(np.uint8)
-        # im_ = np.transpose(im_, (1, 2, 0))[:, :, ::-1]
-        # cv2.imwrite(f'{self.count}.jpg', im_)
-        
         return path, im, im0, self.cap, s
 
     def _new_video(self, path):
@@ -662,7 +656,9 @@ class LoadImagesAndLabels(Dataset):
 
         hyp = self.hyp
         mosaic = self.mosaic and random.random() < hyp['mosaic']
-        if mosaic:
+        # mosaic 안 되게 설정
+        # if mosaic:
+        if 0:
             # Load mosaic
             img, labels = self.load_mosaic(index)
             shapes = None
@@ -684,14 +680,14 @@ class LoadImagesAndLabels(Dataset):
             if labels.size:  # normalized xywh to pixel xyxy format
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], ratio[0] * w, ratio[1] * h, padw=pad[0], padh=pad[1])
 
-            if self.augment:
-                img, labels = random_perspective(img,
-                                                 labels,
-                                                 degrees=hyp['degrees'],
-                                                 translate=hyp['translate'],
-                                                 scale=hyp['scale'],
-                                                 shear=hyp['shear'],
-                                                 perspective=hyp['perspective'])
+            # if self.augment:
+            #     img, labels = random_perspective(img,
+            #                                      labels,
+            #                                      degrees=hyp['degrees'],
+            #                                      translate=hyp['translate'],
+            #                                      scale=hyp['scale'],
+            #                                      shear=hyp['shear'],
+            #                                      perspective=hyp['perspective'])
 
         nl = len(labels)  # number of labels
         if nl:
@@ -700,22 +696,22 @@ class LoadImagesAndLabels(Dataset):
         if self.augment:
             # Albumentations
             img, labels = self.albumentations(img, labels)
-            nl = len(labels)  # update after albumentations
+            # nl = len(labels)  # update after albumentations
 
-            # HSV color-space
-            augment_hsv(img, hgain=hyp['hsv_h'], sgain=hyp['hsv_s'], vgain=hyp['hsv_v'])
+            # # HSV color-space
+            # augment_hsv(img, hgain=hyp['hsv_h'], sgain=hyp['hsv_s'], vgain=hyp['hsv_v'])
 
-            # Flip up-down
-            if random.random() < hyp['flipud']:
-                img = np.flipud(img)
-                if nl:
-                    labels[:, 2] = 1 - labels[:, 2]
+            # # Flip up-down
+            # if random.random() < hyp['flipud']:
+            #     img = np.flipud(img)
+            #     if nl:
+            #         labels[:, 2] = 1 - labels[:, 2]
 
-            # Flip left-right
-            if random.random() < hyp['fliplr']:
-                img = np.fliplr(img)
-                if nl:
-                    labels[:, 1] = 1 - labels[:, 1]
+            # # Flip left-right
+            # if random.random() < hyp['fliplr']:
+            #     img = np.fliplr(img)
+            #     if nl:
+            #         labels[:, 1] = 1 - labels[:, 1]
 
             # Cutouts
             # labels = cutout(img, labels, p=0.5)
@@ -727,6 +723,12 @@ class LoadImagesAndLabels(Dataset):
 
         # Convert
         img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
+
+        # Augmantation 시각화
+        im_ = img.transpose((1, 2, 0))[:, :, ::-1]
+        rand_n = random.randint(0, 100)
+        cv2.imwrite(f'{rand_n}.jpg', im_.astype(np.uint8))
+
         img = np.ascontiguousarray(img)
 
         return torch.from_numpy(img), labels_out, self.im_files[index], shapes
@@ -1164,6 +1166,22 @@ class HUBDatasetStats():
                 pass
         print(f'Done. All images saved to {self.im_dir}')
         return self.im_dir
+    
+def denormalize(img_tensor, mean, std):
+    """
+    Denormalize a tensor image with mean and standard deviation.
+    Args:
+    img_tensor: Torch tensor image
+    mean: List of mean values for each channel
+    std: List of standard deviation values for each channel
+    Returns:
+        img: Numpy array denormalized image
+    """
+    img = img_tensor.clone().detach().cpu().numpy().transpose(1, 2, 0)
+    img = img * np.array(std) + np.array(mean)
+    img = np.clip(img, 0, 1)
+    img = (img * 255).astype(np.uint8)
+    return img
 
 
 # Classification dataloaders -------------------------------------------------------------------------------------------
@@ -1194,10 +1212,32 @@ class ClassificationDataset(torchvision.datasets.ImageFolder):
             im = np.load(fn)
         else:  # read image
             im = cv2.imread(f)  # BGR
+            
+        rand = random.random()
         if self.album_transforms:
             sample = self.album_transforms(image=cv2.cvtColor(im, cv2.COLOR_BGR2RGB))['image']
+            # print('album_transforms shape: ', sample.shape)
+            
+            # save images to check if albumentations is working correctly
+            # if denormalize
+                # im_ = denormalize(sample, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                # cv2.imwrite(f'sample_album_{rand}.jpg', cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
+            # else
+                # im_ = (sample * 255).numpy().astype(np.uint8)  # convert float to uint8
+                # cv2.imwrite(f'sample_album{rand}.jpg', cv2.cvtColor(im_.transpose(1,2,0), cv2.COLOR_BGR2RGB))
+            
         else:
             sample = self.torch_transforms(im)
+            # print('torch_transforms shape: ', sample.shape)
+            # save images to check if albumentations is working correctly
+
+            # if denormalize
+            im_ = denormalize(sample, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            cv2.imwrite(f'sample_torch{rand}.jpg', cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
+            # else
+                # im_ = (sample * 255).numpy().astype(np.uint8)  # convert float to uint8
+                # cv2.imwrite(f'sample_torch{rand}.jpg', cv2.cvtColor(im_.transpose(1,2,0), cv2.COLOR_BGR2RGB))
+        
         return sample, j
 
 

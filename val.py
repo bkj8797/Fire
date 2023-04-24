@@ -46,6 +46,9 @@ from utils.metrics import ConfusionMatrix, ap_per_class, box_iou
 from utils.plots import output_to_target, plot_images, plot_val_study
 from utils.torch_utils import select_device, smart_inference_mode
 
+import pathlib
+temp = pathlib.PosixPath
+pathlib.PosixPath = pathlib.WindowsPath
 
 def save_one_txt(predn, save_conf, shape, file):
     # Save one txt result
@@ -195,7 +198,15 @@ def run(
     jdict, stats, ap, ap_class = [], [], [], []
     callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
+
+    # Print accuracy
+    tp_for_acc = 0
+    fp_for_acc = 0
+    tn_for_acc = 0
+    num_imgs = 0
+
     for batch_i, (im, targets, paths, shapes) in enumerate(pbar):
+        num_imgs += len(im)
         callbacks.run('on_val_batch_start')
         with dt[0]:
             if cuda:
@@ -227,11 +238,35 @@ def run(
 
         # Metrics
         for si, pred in enumerate(preds):
+            # labels에는 32 배치(이미지)마다의 GT bbox 정보가 들어있음[클래스 번호]. pred에는 예측한 bbox 정보가 들어있음.
             labels = targets[targets[:, 0] == si, 1:]
             nl, npr = labels.shape[0], pred.shape[0]  # number of labels, predictions
             path, shape = Path(paths[si]), shapes[si][0]
             correct = torch.zeros(npr, niou, dtype=torch.bool, device=device)  # init
             seen += 1
+            # count per class
+            # > .30 : Threshold
+
+            tp_temp = 0
+            # labels[:, 0]에는 한 이미지에 존재하는 GT bbox 별 클래스 번호가 들어있음. 이게 0이면 smoke, 1이면 fire.
+            # pred에는 예측한 bbox 정보가 들어있음. pred[:, 5]에는 예측한 bbox의 클래스 번호가 들어있음. pred[:, 4]에는 예측한 bbox의 confidence score가 들어있음. 클래스가 동일하고 confidence score가 threshold 이상이면 맞춘거니까 tp_temp를 1로 만듦.
+            if 0 in labels[:, 0]: # smoke에 대해서
+                if len(pred[pred[:, 5] == 0]) > 0 and torch.max(pred[pred[:, 5] == 0][:, 4]) > .30:
+                    tp_temp = 1
+                if len(pred[pred[:, 5] == 1]) > 0 and torch.max(pred[pred[:, 5] == 1][:, 4]) > .30: # smoke 기준 fire여도 맞춘거
+                    tp_temp = 1
+            if 1 in labels[:, 0]: # fire에 대해서
+                if len(pred[pred[:, 5] == 0]) > 0 and torch.max(pred[pred[:, 5] == 0][:, 4]) > .30: # fire 기준 smoke여도 맞춘거
+                    tp_temp = 1
+                if len(pred[pred[:, 5] == 1]) > 0 and torch.max(pred[pred[:, 5] == 1][:, 4]) > .30:
+                    tp_temp = 1
+
+            tp_for_acc += tp_temp # 맞춘 이미지가 있으면 1개 더해주고, 없으면 안 더해줌
+            if len(labels) == 0: # GT bbox가 없는 이미지는 no_fire임. no_fire에 대해서
+                if len(pred) > 0 and torch.max(pred[:, 4]) > .30: # 예측한 bbox가 있고, confidence score가 threshold 이상이면 fp
+                    fp_for_acc += 1
+                else:
+                    tn_for_acc += 1 # 예측한 bbox가 없으면 tn
 
             if npr == 0:
                 if nl:
@@ -269,6 +304,9 @@ def run(
             plot_images(im, output_to_target(preds), paths, save_dir / f'val_batch{batch_i}_pred.jpg', names)  # pred
 
         callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
+
+    print(f"tp_count: {tp_for_acc}\nfp_count: {fp_for_acc}\ntn_count: {tn_for_acc}\nnum_imgs: {num_imgs}\nsum: {sum([tp_for_acc, fp_for_acc, tn_for_acc])}")
+    print("acc: ", (tp_for_acc + tn_for_acc) / num_imgs)
 
     # Compute metrics
     stats = [torch.cat(x, 0).cpu().numpy() for x in zip(*stats)]  # to numpy
