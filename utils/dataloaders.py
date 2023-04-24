@@ -1232,8 +1232,8 @@ class ClassificationDataset(torchvision.datasets.ImageFolder):
             # save images to check if albumentations is working correctly
 
             # if denormalize
-            im_ = denormalize(sample, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-            cv2.imwrite(f'sample_torch{rand}.jpg', cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
+            # im_ = denormalize(sample, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            # cv2.imwrite(f'sample_torch{rand}.jpg', cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
             # else
                 # im_ = (sample * 255).numpy().astype(np.uint8)  # convert float to uint8
                 # cv2.imwrite(f'sample_torch{rand}.jpg', cv2.cvtColor(im_.transpose(1,2,0), cv2.COLOR_BGR2RGB))
